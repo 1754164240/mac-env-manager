@@ -2,17 +2,25 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="$ROOT_DIR/.build/Mac Env Manager.app"
 DIST_DIR="$ROOT_DIR/dist"
-PACKAGE_DIR="$DIST_DIR/Mac Env Manager"
 ZIP_PATH="$DIST_DIR/Mac Env Manager.zip"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mac-env-manager-package.XXXXXX")"
+APP_PATH="$WORK_DIR/Mac Env Manager.app"
+PACKAGE_DIR="$WORK_DIR/Mac Env Manager"
+WORK_ZIP_PATH="$WORK_DIR/Mac Env Manager.zip"
 
-"$ROOT_DIR/scripts/build-app.sh" >/dev/null
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
-rm -rf "$PACKAGE_DIR" "$ZIP_PATH"
+MAC_ENV_MANAGER_APP_DIR="$APP_PATH" "$ROOT_DIR/scripts/build-app.sh" >/dev/null
+
+rm -rf "$PACKAGE_DIR" "$ZIP_PATH" "$WORK_ZIP_PATH"
+mkdir -p "$DIST_DIR"
 mkdir -p "$PACKAGE_DIR"
 
-ditto "$APP_PATH" "$PACKAGE_DIR/Mac Env Manager.app"
+ditto --norsrc "$APP_PATH" "$PACKAGE_DIR/Mac Env Manager.app"
 xattr -cr "$PACKAGE_DIR/Mac Env Manager.app"
 codesign --force --deep --sign - "$PACKAGE_DIR/Mac Env Manager.app" >/dev/null
 xattr -cr "$PACKAGE_DIR/Mac Env Manager.app"
@@ -56,8 +64,11 @@ chmod +x "$PACKAGE_DIR/Fix Damaged App.command"
 
 xattr -cr "$PACKAGE_DIR"
 (
-  cd "$DIST_DIR"
-  COPYFILE_DISABLE=1 zip -qry -X "$(basename "$ZIP_PATH")" "$(basename "$PACKAGE_DIR")"
+  cd "$WORK_DIR"
+  COPYFILE_DISABLE=1 zip -qry -X "$(basename "$WORK_ZIP_PATH")" "$(basename "$PACKAGE_DIR")"
 )
+
+cp -X "$WORK_ZIP_PATH" "$ZIP_PATH"
+xattr -cr "$ZIP_PATH"
 
 echo "$ZIP_PATH"

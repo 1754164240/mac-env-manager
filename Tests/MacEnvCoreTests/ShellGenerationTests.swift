@@ -18,6 +18,17 @@ final class ShellGenerationTests: XCTestCase {
         XCTAssertTrue(block.contains("# <<< Mac Env Manager"))
     }
 
+    func testGeneratesKeychainReferenceWithoutSingleQuotingCommandSubstitution() throws {
+        let variables = [
+            EnvVariable(name: "OPENAI_API_KEY", value: "$(security find-generic-password -s 'Mac Env Manager' -a 'OPENAI_API_KEY' -w)", source: .managed)
+        ]
+
+        let block = ShellGenerator().managedBlock(variables: variables, pathEntries: [])
+
+        XCTAssertTrue(block.contains("export OPENAI_API_KEY=$(security find-generic-password -s 'Mac Env Manager' -a 'OPENAI_API_KEY' -w)"))
+        XCTAssertFalse(block.contains("OPENAI_API_KEY='$(security"))
+    }
+
     func testGeneratesStructuredPathWithoutDuplicateEnabledEntries() throws {
         let pathEntries = [
             PathEntry(value: "/usr/local/bin", isEnabled: true),

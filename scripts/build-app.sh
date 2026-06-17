@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="$ROOT_DIR/.build/Mac Env Manager.app"
+APP_DIR="${MAC_ENV_MANAGER_APP_DIR:-$ROOT_DIR/.build/Mac Env Manager.app}"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
@@ -13,8 +13,8 @@ ICON_PATH="$(swift "$ROOT_DIR/scripts/generate-icon.swift")"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-cp "$ROOT_DIR/.build/release/MacEnvManager" "$MACOS_DIR/MacEnvManager"
-cp "$ICON_PATH" "$RESOURCES_DIR/AppIcon.icns"
+cp -X "$ROOT_DIR/.build/release/MacEnvManager" "$MACOS_DIR/MacEnvManager"
+cp -X "$ICON_PATH" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -36,9 +36,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.2.0</string>
+  <string>0.3.0</string>
   <key>CFBundleVersion</key>
-  <string>2</string>
+  <string>3</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>NSHighResolutionCapable</key>
@@ -48,8 +48,11 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 PLIST
 
 clean_app_xattrs() {
-  xattr -d com.apple.FinderInfo "$APP_DIR" 2>/dev/null || true
-  xattr -d "com.apple.fileprovider.fpfs#P" "$APP_DIR" 2>/dev/null || true
+  while IFS= read -r item; do
+    xattr -d com.apple.FinderInfo "$item" 2>/dev/null || true
+    xattr -d "com.apple.fileprovider.fpfs#P" "$item" 2>/dev/null || true
+    xattr -d com.apple.provenance "$item" 2>/dev/null || true
+  done < <(find "$APP_DIR" -print)
   xattr -cr "$APP_DIR"
 }
 

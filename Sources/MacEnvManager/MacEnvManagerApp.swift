@@ -5,14 +5,16 @@ import SwiftUI
 struct MacEnvManagerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var viewModel = EnvironmentViewModel()
+    @State private var proViewModel = ProEnvironmentViewModel()
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         WindowGroup("Mac Env Manager", id: "main") {
-            ContentView(viewModel: viewModel)
+            ContentView(viewModel: viewModel, proViewModel: proViewModel)
                 .frame(minWidth: 1120, minHeight: 720)
                 .task {
                     await viewModel.loadAsync()
+                    proViewModel.refreshDiagnostics(snapshot: viewModel.snapshot, guiVariables: proViewModel.guiVariables)
                 }
         }
         .commands {

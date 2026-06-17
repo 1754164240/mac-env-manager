@@ -11,7 +11,10 @@ public struct ShellGenerator: Sendable {
 
         for variable in variables {
             guard ShellSyntax.isValidVariableName(variable.name) else { continue }
-            let assignment = "\(variable.isExported ? "export " : "")\(variable.name)=\(ShellSyntax.shellSingleQuote(variable.value))"
+            let renderedValue = variable.value.hasPrefix("$(security find-generic-password ")
+                ? variable.value
+                : ShellSyntax.shellSingleQuote(variable.value)
+            let assignment = "\(variable.isExported ? "export " : "")\(variable.name)=\(renderedValue)"
             if variable.isEnabled {
                 lines.append(assignment)
             } else {

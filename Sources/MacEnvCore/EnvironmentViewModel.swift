@@ -186,6 +186,52 @@ public final class EnvironmentViewModel {
         try? rebuildPlan()
     }
 
+    public func applyTemplate(_ template: EnvironmentTemplate) {
+        for templateVariable in template.variables {
+            if let index = snapshot.variables.firstIndex(where: { $0.name == templateVariable.name }) {
+                snapshot.variables[index].value = templateVariable.value
+                snapshot.variables[index].isExported = templateVariable.isExported
+                snapshot.variables[index].isEnabled = true
+                snapshot.variables[index].source = .managed
+            } else {
+                snapshot.variables.append(
+                    EnvVariable(
+                        name: templateVariable.name,
+                        value: templateVariable.value,
+                        isExported: templateVariable.isExported,
+                        isEnabled: true,
+                        source: .managed
+                    )
+                )
+            }
+        }
+
+        let existingPaths = Set(snapshot.pathEntries.map(\.value))
+        for pathEntry in template.pathEntries where !existingPaths.contains(pathEntry) {
+            snapshot.pathEntries.append(PathEntry(value: pathEntry, isEnabled: true))
+        }
+        markPathDuplicates()
+        try? rebuildPlan()
+    }
+
+    public func applyKeychainReference(name: String, shellSnippet: String) {
+        guard ShellSyntax.isValidVariableName(name) else {
+            errorMessage = "Invalid shell variable name: \(name)"
+            return
+        }
+        guard let equalsIndex = shellSnippet.firstIndex(of: "=") else { return }
+        let value = String(shellSnippet[shellSnippet.index(after: equalsIndex)...])
+        if let index = snapshot.variables.firstIndex(where: { $0.name == name }) {
+            snapshot.variables[index].value = value
+            snapshot.variables[index].isExported = true
+            snapshot.variables[index].isEnabled = true
+            snapshot.variables[index].source = .managed
+        } else {
+            snapshot.variables.append(EnvVariable(name: name, value: value, isExported: true, isEnabled: true, source: .managed))
+        }
+        try? rebuildPlan()
+    }
+
     public func movePathEntry(fromOffsets offsets: IndexSet, toOffset offset: Int) {
         snapshot.pathEntries.moveElements(fromOffsets: offsets, toOffset: offset)
         markPathDuplicates()
@@ -315,6 +361,11 @@ private extension Array {
 public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
     case variables
     case path
+    case diagnostics
+    case guiEnvironment
+    case projects
+    case wizard
+    case secrets
     case backups
     case tools
 
@@ -324,6 +375,11 @@ public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .variables: "变量"
         case .path: "PATH"
+        case .diagnostics: "诊断"
+        case .guiEnvironment: "GUI 环境"
+        case .projects: "项目"
+        case .wizard: "向导"
+        case .secrets: "密钥"
         case .backups: "备份"
         case .tools: "工具"
         }
@@ -333,6 +389,11 @@ public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .variables: "list.bullet.rectangle"
         case .path: "point.topleft.down.curvedto.point.bottomright.up"
+        case .diagnostics: "stethoscope"
+        case .guiEnvironment: "macwindow"
+        case .projects: "folder.badge.gearshape"
+        case .wizard: "wand.and.stars"
+        case .secrets: "key"
         case .backups: "clock.arrow.circlepath"
         case .tools: "wrench.and.screwdriver"
         }

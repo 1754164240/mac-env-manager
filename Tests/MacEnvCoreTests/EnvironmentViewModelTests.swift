@@ -184,4 +184,19 @@ final class EnvironmentViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.selectedRepairPlan)
         XCTAssertEqual(viewModel.errorMessage, "请选择 .app 应用程序：/Applications/README.txt")
     }
+
+    func testViewModelAppliesKeychainReferenceToManagedPlan() throws {
+        let home = try TemporaryHome()
+        try home.write(".zshrc", "# zsh\n")
+        let viewModel = EnvironmentViewModel(homeDirectory: home.url)
+        viewModel.load()
+
+        viewModel.applyKeychainReference(
+            name: "OPENAI_API_KEY",
+            shellSnippet: "export OPENAI_API_KEY=$(security find-generic-password -s 'Mac Env Manager' -a 'OPENAI_API_KEY' -w)"
+        )
+
+        XCTAssertTrue(viewModel.pendingDiff.contains("export OPENAI_API_KEY=$(security find-generic-password"))
+        XCTAssertFalse(viewModel.pendingDiff.contains("OPENAI_API_KEY='$(security"))
+    }
 }
