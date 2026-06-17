@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:envs}",
+            "name": "Debug MacEnvManager",
+            "target": "MacEnvManager",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug MacEnvManager"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:envs}",
+            "name": "Release MacEnvManager",
+            "target": "MacEnvManager",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release MacEnvManager"
+        }
+    ]
+}
