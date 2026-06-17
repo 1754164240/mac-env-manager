@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var viewModel: EnvironmentViewModel
+    @State private var showsChangeSheet = false
 
     var body: some View {
         NavigationSplitView {
@@ -22,13 +23,13 @@ struct ContentView: View {
                 } label: {
                     Label("重新加载", systemImage: "arrow.clockwise")
                 }
-                Button {
-                    viewModel.applyChanges()
-                } label: {
-                    Label("应用", systemImage: "checkmark.circle")
-                }
-                .buttonStyle(.borderedProminent)
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            PendingApplyBar(viewModel: viewModel, showsChangeSheet: $showsChangeSheet)
+        }
+        .sheet(isPresented: $showsChangeSheet) {
+            ChangePreviewSheet(viewModel: viewModel)
         }
         .alert("操作失败", isPresented: errorBinding) {
             Button("好") {
@@ -55,6 +56,76 @@ struct ContentView: View {
     }
 }
 
+private struct PendingApplyBar: View {
+    @Bindable var viewModel: EnvironmentViewModel
+    @Binding var showsChangeSheet: Bool
+
+    var body: some View {
+        if viewModel.pendingChangeCount > 0 {
+            HStack(spacing: 12) {
+                Label("\(viewModel.pendingChangeCount) 个文件待应用", systemImage: "circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    showsChangeSheet = true
+                } label: {
+                    Label("查看变更", systemImage: "doc.text.magnifyingglass")
+                }
+                Button {
+                    viewModel.applyChanges()
+                } label: {
+                    Label("应用", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.bar)
+            .overlay(alignment: .top) {
+                Divider()
+            }
+        }
+    }
+}
+
+private struct ChangePreviewSheet: View {
+    @Bindable var viewModel: EnvironmentViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("变更预览")
+                    .font(.title3.bold())
+                Spacer()
+                Button("关闭") {
+                    dismiss()
+                }
+            }
+
+            ScrollView {
+                DiffPreviewView(viewModel: viewModel)
+                    .padding(.vertical, 4)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    viewModel.applyChanges()
+                    dismiss()
+                } label: {
+                    Label("应用", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.pendingChangeCount == 0)
+            }
+        }
+        .padding()
+        .frame(minWidth: 760, minHeight: 520)
+    }
+}
+
 private struct SidebarView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
@@ -67,24 +138,18 @@ private struct SidebarView: View {
                 }
             }
 
-            Section("模式") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Managed + Dotfiles")
-                        .font(.headline)
-                    Text("~/.mac-env-manager/env.sh")
-                    Text("zsh + bash")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 4)
-            }
-
             if !viewModel.warnings.isEmpty {
                 Section("提示") {
-                    ForEach(viewModel.warnings, id: \.self) { warning in
+                    ForEach(viewModel.warnings.prefix(3), id: \.self) { warning in
                         Label(warning, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
+                    if viewModel.warnings.count > 3 {
+                        Text("+ \(viewModel.warnings.count - 3) 条")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -103,26 +168,30 @@ private struct SectionListView: View {
                 VariablesView(viewModel: viewModel)
             case .path:
                 PathEditorView(viewModel: viewModel)
-            case .sources:
-                SourcesView(viewModel: viewModel)
             case .backups:
                 BackupsView(viewModel: viewModel)
-            case .repair:
-                RepairAppPickerView(viewModel: viewModel)
+            case .tools:
+                ToolsView(viewModel: viewModel)
             }
         }
     }
 }
 
-private struct RepairAppPickerView: View {
+private struct ToolsView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Text("工具")
+                .font(.headline)
+
+            Text("修复 macOS 提示应用已损坏或无法验证开发者的情况。")
+                .foregroundStyle(.secondary)
+
             Button {
                 selectApplication()
             } label: {
-                Label("选择应用程序", systemImage: "app.badge")
+                Label("选择要修复的应用", systemImage: "app.badge")
             }
             .buttonStyle(.borderedProminent)
 
@@ -142,7 +211,7 @@ private struct RepairAppPickerView: View {
             Spacer()
         }
         .padding()
-        .navigationTitle("修复")
+        .navigationTitle("工具")
     }
 
     private func selectApplication() {
@@ -257,31 +326,6 @@ private struct PathEditorView: View {
     }
 }
 
-private struct SourcesView: View {
-    @Bindable var viewModel: EnvironmentViewModel
-
-    var body: some View {
-        List(viewModel.snapshot.sources, selection: $viewModel.selectedSourcePath) { source in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(source.path)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                HStack {
-                    Label(source.hasManagedBlock ? "已安装工具块" : "未安装工具块", systemImage: source.hasManagedBlock ? "checkmark.seal" : "seal")
-                    Label("\(source.importableCount) 可接管", systemImage: "square.and.arrow.down")
-                    Label("\(source.unmanagedCount) 未托管", systemImage: "exclamationmark.triangle")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 4)
-            .tag(source.id)
-        }
-        .navigationTitle("来源")
-    }
-}
-
 private struct BackupsView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
@@ -341,11 +385,9 @@ private struct DetailInspectorView: View {
                     VariableDetailView(viewModel: viewModel)
                 case .path:
                     PathDetailView(viewModel: viewModel)
-                case .sources:
-                    SourceDetailView(viewModel: viewModel)
                 case .backups:
                     ApplyResultView(viewModel: viewModel)
-                case .repair:
+                case .tools:
                     RepairDetailView(viewModel: viewModel)
                 }
             }
@@ -364,7 +406,7 @@ private struct RepairDetailView: View {
             Text("修复已损坏应用")
                 .font(.title3.bold())
 
-            Text("这个操作会移除选中应用上的 macOS 隔离属性，等同于运行 xattr 修复命令。执行时系统会弹出管理员授权。")
+            Text("执行时系统会弹出管理员授权。")
                 .foregroundStyle(.secondary)
 
             if let plan = viewModel.selectedRepairPlan {
@@ -403,76 +445,6 @@ private struct RepairDetailView: View {
     }
 }
 
-private struct SourceDetailView: View {
-    @Bindable var viewModel: EnvironmentViewModel
-    @State private var showsDiffPreview = false
-
-    var body: some View {
-        if let detail = viewModel.selectedSourceDetail {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(URL(fileURLWithPath: detail.source.path).lastPathComponent)
-                    .font(.title3.bold())
-
-                Text(detail.source.path)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-
-                HStack(spacing: 12) {
-                    Label(detail.source.hasManagedBlock ? "已安装工具块" : "未安装工具块", systemImage: detail.source.hasManagedBlock ? "checkmark.seal" : "seal")
-                    Label("\(detail.source.importableCount) 可接管", systemImage: "square.and.arrow.down")
-                    Label("\(detail.source.unmanagedCount) 未托管", systemImage: "exclamationmark.triangle")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                GroupBox("PATH 设置") {
-                    if detail.pathLines.isEmpty {
-                        Text("这个来源文件里没有可结构化解析的 PATH 设置")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(detail.pathLines) { entry in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("第 \(entry.lineNumber ?? 0) 行")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Text(entry.rawLine ?? entry.value)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    Text(entry.value)
-                                        .font(.system(.caption2, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                }
-                                if entry.id != detail.pathLines.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-
-                GroupBox("文件内容") {
-                    Text(detail.content.isEmpty ? "文件为空或无法读取" : detail.content)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                DisclosureGroup("变更预览", isExpanded: $showsDiffPreview) {
-                    DiffPreviewView(viewModel: viewModel)
-                }
-            }
-        } else {
-            ContentUnavailableView("未选择来源", systemImage: "doc.text.magnifyingglass")
-        }
-    }
-}
-
 private struct VariableDetailView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
@@ -488,6 +460,8 @@ private struct VariableDetailView: View {
 private struct EditableVariableForm: View {
     @Bindable var viewModel: EnvironmentViewModel
     @State var variable: EnvVariable
+    @State private var showsSource = false
+    @State private var showsChanges = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -513,6 +487,10 @@ private struct EditableVariableForm: View {
             Toggle("启用", isOn: $variable.isEnabled)
             Toggle("明文显示敏感值", isOn: $viewModel.showsSensitiveValues)
 
+            DisclosureGroup("来源", isExpanded: $showsSource) {
+                VariableSourceView(variable: variable)
+            }
+
             HStack {
                 Button("保存到计划") {
                     viewModel.updateVariable(variable)
@@ -535,7 +513,9 @@ private struct EditableVariableForm: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            DiffPreviewView(viewModel: viewModel)
+            DisclosureGroup("变更预览", isExpanded: $showsChanges) {
+                DiffPreviewView(viewModel: viewModel)
+            }
         }
         .onChange(of: viewModel.selectedVariableID) { _, _ in
             if let selected = viewModel.selectedVariable {
@@ -551,8 +531,33 @@ private struct EditableVariableForm: View {
     }
 }
 
+private struct VariableSourceView: View {
+    let variable: EnvVariable
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("来源") {
+                Text(variable.source.displayName)
+            }
+            if case .dotfile(let path) = variable.source {
+                LabeledContent("文件") {
+                    Text(path)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+            if variable.isTakenOver {
+                Label("已计划接管到托管文件", systemImage: "checkmark.circle")
+                    .foregroundStyle(.green)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct PathDetailView: View {
     @Bindable var viewModel: EnvironmentViewModel
+    @State private var showsChanges = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -571,7 +576,9 @@ private struct PathDetailView: View {
                         .foregroundStyle(.orange)
                 }
             }
-            DiffPreviewView(viewModel: viewModel)
+            DisclosureGroup("变更预览", isExpanded: $showsChanges) {
+                DiffPreviewView(viewModel: viewModel)
+            }
         }
     }
 }

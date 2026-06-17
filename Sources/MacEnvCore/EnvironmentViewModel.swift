@@ -87,6 +87,10 @@ public final class EnvironmentViewModel {
         pendingChangeSet?.sourceCommands ?? []
     }
 
+    public var pendingChangeCount: Int {
+        pendingChangeSet?.changes.filter { $0.original != $0.updated }.count ?? 0
+    }
+
     public var warnings: [String] {
         var allWarnings = pendingChangeSet?.warnings ?? []
         allWarnings.append(contentsOf: pathDiagnostics)
@@ -306,9 +310,8 @@ private extension Array {
 public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
     case variables
     case path
-    case sources
     case backups
-    case repair
+    case tools
 
     public var id: String { rawValue }
 
@@ -316,9 +319,8 @@ public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .variables: "变量"
         case .path: "PATH"
-        case .sources: "来源"
         case .backups: "备份"
-        case .repair: "修复"
+        case .tools: "工具"
         }
     }
 
@@ -326,9 +328,8 @@ public enum AppSection: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .variables: "list.bullet.rectangle"
         case .path: "point.topleft.down.curvedto.point.bottomright.up"
-        case .sources: "doc.text.magnifyingglass"
         case .backups: "clock.arrow.circlepath"
-        case .repair: "wrench.and.screwdriver"
+        case .tools: "wrench.and.screwdriver"
         }
     }
 }
