@@ -98,9 +98,26 @@ final class EnvironmentViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.pathDiagnostics, [
-            "Duplicate PATH entry: /usr/bin",
-            "Missing PATH entry: /missing/path"
+            "PATH 重复：/usr/bin",
+            "PATH 不存在：/missing/path"
         ])
+    }
+
+    func testViewModelDistinguishesInitializationSuggestionsFromUserEdits() throws {
+        let home = try TemporaryHome()
+        let viewModel = EnvironmentViewModel(homeDirectory: home.url)
+        viewModel.pendingChangeSet = ChangeSet(
+            changes: [
+                FileChange(path: home.path(".zshrc"), original: "", updated: "source managed\n", diff: "+ source managed")
+            ]
+        )
+
+        XCTAssertEqual(viewModel.pendingChangeCount, 1)
+        XCTAssertFalse(viewModel.hasUserEdits)
+
+        viewModel.addVariable()
+
+        XCTAssertTrue(viewModel.hasUserEdits)
     }
 
     func testSelectedSourceDetailReadsFileContentAndRelatedPathLines() throws {

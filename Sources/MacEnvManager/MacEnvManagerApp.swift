@@ -22,7 +22,7 @@ struct MacEnvManagerApp: App {
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
-                Button("应用待处理更改") {
+                Button("写入待处理更改") {
                     viewModel.applyChanges()
                 }
                 .keyboardShortcut(.return, modifiers: [.command])

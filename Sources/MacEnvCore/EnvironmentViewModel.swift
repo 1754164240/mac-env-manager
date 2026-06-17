@@ -91,6 +91,11 @@ public final class EnvironmentViewModel {
         pendingChangeSet?.changes.filter { $0.original != $0.updated }.count ?? 0
     }
 
+    public var hasUserEdits: Bool {
+        snapshot.variables.contains { $0.source == .managed || $0.isTakenOver }
+            || snapshot.pathEntries.contains { $0.sourcePath == nil }
+    }
+
     public var warnings: [String] {
         var allWarnings = pendingChangeSet?.warnings ?? []
         allWarnings.append(contentsOf: pathDiagnostics)
@@ -100,10 +105,10 @@ public final class EnvironmentViewModel {
     public var pathDiagnostics: [String] {
         var diagnostics: [String] = []
         for entry in snapshot.pathEntries where entry.isDuplicate {
-            diagnostics.append("Duplicate PATH entry: \(entry.value)")
+            diagnostics.append("PATH 重复：\(entry.value)")
         }
         for entry in snapshot.pathEntries where entry.existsOnDisk == false {
-            diagnostics.append("Missing PATH entry: \(entry.value)")
+            diagnostics.append("PATH 不存在：\(entry.value)")
         }
         return diagnostics
     }
@@ -338,11 +343,11 @@ public extension EnvVariableSource {
     var displayName: String {
         switch self {
         case .managed:
-            "managed"
+            "已托管"
         case .dotfile(let path):
             URL(fileURLWithPath: path).lastPathComponent
         case .unmanaged(let path):
-            "unmanaged \(URL(fileURLWithPath: path).lastPathComponent)"
+            "未托管 \(URL(fileURLWithPath: path).lastPathComponent)"
         }
     }
 }

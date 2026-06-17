@@ -14,6 +14,7 @@ struct ContentView: View {
         } detail: {
             DetailInspectorView(viewModel: viewModel)
         }
+        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -63,7 +64,7 @@ private struct PendingApplyBar: View {
     var body: some View {
         if viewModel.pendingChangeCount > 0 {
             HStack(spacing: 12) {
-                Label("\(viewModel.pendingChangeCount) 个文件待应用", systemImage: "circle.fill")
+                Label(applyBarTitle, systemImage: viewModel.hasUserEdits ? "pencil.circle.fill" : "info.circle")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -75,7 +76,7 @@ private struct PendingApplyBar: View {
                 Button {
                     viewModel.applyChanges()
                 } label: {
-                    Label("应用", systemImage: "checkmark.circle")
+                    Label("写入文件", systemImage: "checkmark.circle")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -86,6 +87,13 @@ private struct PendingApplyBar: View {
                 Divider()
             }
         }
+    }
+
+    private var applyBarTitle: String {
+        if viewModel.hasUserEdits {
+            return "\(viewModel.pendingChangeCount) 个文件待写入"
+        }
+        return "\(viewModel.pendingChangeCount) 个初始化建议"
     }
 }
 
@@ -115,7 +123,7 @@ private struct ChangePreviewSheet: View {
                     viewModel.applyChanges()
                     dismiss()
                 } label: {
-                    Label("应用", systemImage: "checkmark.circle")
+                    Label("写入文件", systemImage: "checkmark.circle")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.pendingChangeCount == 0)
@@ -139,18 +147,10 @@ private struct SidebarView: View {
             }
 
             if !viewModel.warnings.isEmpty {
-                Section("提示") {
-                    ForEach(viewModel.warnings.prefix(3), id: \.self) { warning in
-                        Label(warning, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .lineLimit(1)
-                    }
-                    if viewModel.warnings.count > 3 {
-                        Text("+ \(viewModel.warnings.count - 3) 条")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                Section("诊断") {
+                    Label("\(viewModel.warnings.count) 条提示", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
         }
@@ -181,51 +181,23 @@ private struct ToolsView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        List(selection: .constant("repair")) {
             Text("工具")
-                .font(.headline)
-
-            Text("修复 macOS 提示应用已损坏或无法验证开发者的情况。")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Button {
-                selectApplication()
-            } label: {
-                Label("选择要修复的应用", systemImage: "app.badge")
-            }
-            .buttonStyle(.borderedProminent)
-
-            if let plan = viewModel.selectedRepairPlan {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(plan.displayName)
-                        .font(.headline)
-                    Text(plan.appPath)
-                        .font(.system(.caption, design: .monospaced))
+            HStack(spacing: 10) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("修复已损坏应用")
+                    Text("移除 quarantine 隔离属性")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
                 }
-            } else {
-                ContentUnavailableView("未选择应用", systemImage: "app.dashed", description: Text("选择提示“已损坏”或无法打开的 .app。"))
             }
-
-            Spacer()
+            .tag("repair")
         }
-        .padding()
         .navigationTitle("工具")
-    }
-
-    private func selectApplication() {
-        let panel = NSOpenPanel()
-        panel.title = "选择要修复的应用程序"
-        panel.prompt = "选择"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.applicationBundle]
-
-        if panel.runModal() == .OK, let url = panel.url {
-            viewModel.selectRepairApp(url)
-        }
     }
 }
 
@@ -253,21 +225,26 @@ private struct VariablesView: View {
                 .width(48)
 
                 TableColumn("名称", value: \.name)
+                    .width(min: 160, ideal: 220)
                 TableColumn("值") { variable in
                     Text(viewModel.displayValue(for: variable))
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
+                .width(min: 180, ideal: 280)
                 TableColumn("来源") { variable in
                     Text(variable.source.displayName)
                         .foregroundStyle(.secondary)
                 }
+                .width(88)
                 TableColumn("状态") { variable in
                     StatusBadge(variable: variable)
                 }
+                .width(88)
             }
         }
         .navigationTitle("变量")
+        .navigationSplitViewColumnWidth(min: 520, ideal: 660, max: 820)
     }
 }
 
@@ -283,7 +260,7 @@ private struct PathEditorView: View {
                     Label("新增路径", systemImage: "plus")
                 }
                 Spacer()
-                Text("\(viewModel.snapshot.pathEntries.count) entries")
+                Text("\(viewModel.snapshot.pathEntries.count) 项")
                     .foregroundStyle(.secondary)
             }
             .padding()
@@ -323,6 +300,7 @@ private struct PathEditorView: View {
             }
         }
         .navigationTitle("PATH")
+        .navigationSplitViewColumnWidth(min: 520, ideal: 660, max: 820)
     }
 }
 
@@ -406,8 +384,15 @@ private struct RepairDetailView: View {
             Text("修复已损坏应用")
                 .font(.title3.bold())
 
-            Text("执行时系统会弹出管理员授权。")
+            Text("选择一个提示“已损坏”或“无法验证开发者”的 .app，移除 macOS 隔离属性。")
                 .foregroundStyle(.secondary)
+
+            Button {
+                selectApplication()
+            } label: {
+                Label("选择应用程序", systemImage: "app.badge")
+            }
+            .buttonStyle(.borderedProminent)
 
             if let plan = viewModel.selectedRepairPlan {
                 LabeledContent("应用") {
@@ -439,8 +424,23 @@ private struct RepairDetailView: View {
                         .foregroundStyle(.green)
                 }
             } else {
-                ContentUnavailableView("未选择应用", systemImage: "app.dashed", description: Text("请先在中间列表选择一个 .app 应用程序。"))
+                Text("尚未选择应用")
+                    .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func selectApplication() {
+        let panel = NSOpenPanel()
+        panel.title = "选择要修复的应用程序"
+        panel.prompt = "选择"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.selectRepairApp(url)
         }
     }
 }
@@ -461,6 +461,7 @@ private struct EditableVariableForm: View {
     @Bindable var viewModel: EnvironmentViewModel
     @State var variable: EnvVariable
     @State private var showsSource = false
+    @State private var showsShellPreview = false
     @State private var showsChanges = false
 
     var body: some View {
@@ -477,13 +478,13 @@ private struct EditableVariableForm: View {
                 }
             }
 
-            TextField("Name", text: $variable.name)
+            TextField("变量名", text: $variable.name)
             TextEditor(text: $variable.value)
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 92)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
 
-            Toggle("Export", isOn: $variable.isExported)
+            Toggle("导出 export", isOn: $variable.isExported)
             Toggle("启用", isOn: $variable.isEnabled)
             Toggle("明文显示敏感值", isOn: $viewModel.showsSensitiveValues)
 
@@ -492,7 +493,7 @@ private struct EditableVariableForm: View {
             }
 
             HStack {
-                Button("保存到计划") {
+                Button("加入待写入") {
                     viewModel.updateVariable(variable)
                 }
                 .buttonStyle(.borderedProminent)
@@ -506,11 +507,13 @@ private struct EditableVariableForm: View {
                 }
             }
 
-            GroupBox("Generated Shell") {
-                Text(generatedShell(for: variable))
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            DisclosureGroup("Shell 预览", isExpanded: $showsShellPreview) {
+                GroupBox {
+                    Text(generatedShell(for: variable))
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             DisclosureGroup("变更预览", isExpanded: $showsChanges) {
@@ -642,7 +645,7 @@ private struct DiffPreviewView: View {
     @Bindable var viewModel: EnvironmentViewModel
 
     var body: some View {
-        GroupBox("Diff Preview") {
+        GroupBox("变更内容") {
             if viewModel.pendingDiff.isEmpty {
                 Text("没有待应用更改")
                     .foregroundStyle(.secondary)
@@ -705,9 +708,9 @@ private struct StatusBadge: View {
     }
 
     private var title: String {
-        if !variable.isEnabled { return "disabled" }
-        if case .managed = variable.source { return "managed" }
-        return "importable"
+        if !variable.isEnabled { return "已停用" }
+        if case .managed = variable.source { return "已托管" }
+        return "可接管"
     }
 
     private var color: Color {
